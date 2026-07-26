@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Todo</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+  ul { list-style: none; padding: 0; }
+  li { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  li.completed span { text-decoration: line-through; color: #888; }
+  li span { flex: 1; }
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; }
+</style>
+</head>
+<body>
+<h1>Todo</h1>
+<form id="add-form">
+  <input type="text" id="new-title" placeholder="New todo" required>
+  <button type="submit">Add</button>
+</form>
+<ul id="todo-list"></ul>
+<script>
+async function loadTodos() {
+  const res = await fetch("/api/todos");
+  const todos = await res.json();
+  const list = document.getElementById("todo-list");
+  list.innerHTML = "";
+  for (const todo of todos) {
+    const li = document.createElement("li");
+    if (todo.completed) li.classList.add("completed");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = todo.completed;
+    checkbox.onchange = () => toggleTodo(todo.id, checkbox.checked);
+
+    const span = document.createElement("span");
+    span.textContent = todo.title;
+
+    const del = document.createElement("button");
+    del.textContent = "Delete";
+    del.onclick = () => deleteTodo(todo.id);
+
+    li.append(checkbox, span, del);
+    list.appendChild(li);
+  }
+}
+
+async function toggleTodo(id, completed) {
+  await fetch(`/api/todos/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ completed }),
+  });
+  loadTodos();
+}
+
+async function deleteTodo(id) {
+  await fetch(`/api/todos/${id}`, { method: "DELETE" });
+  loadTodos();
+}
+
+document.getElementById("add-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = document.getElementById("new-title");
+  await fetch("/api/todos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: input.value }),
+  });
+  input.value = "";
+  loadTodos();
+});
+
+loadTodos();
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Deploy-time Compose fragment (docs/app-platform.md in nyc_pa_aws_gitops).
+# app-deploy.yml stages this file to the hub as-is and runs it there with
+# `docker compose pull && docker compose up -d` -- the .env file and the
+# `home-platform` network are both provided at deploy time, not by this
+# file.
+
+services:
+  app:
+    image: 147856894209.dkr.ecr.us-east-1.amazonaws.com/todo-app:latest
+    container_name: todo-app
+    restart: unless-stopped
+    environment:
+      # Not a secret -- set directly here rather than round-tripping
+      # through SSM/.env like the real credentials below.
+      APP_NAME: todo-app
+    env_file:
+      - .env
+    networks:
+      - home-platform
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.todo-app.rule=Host(`todo-app.billandjessie.com`)"
+      - "traefik.http.routers.todo-app.entrypoints=websecure"
+      - "traefik.http.routers.todo-app.tls.certresolver=route53"
+      - "traefik.http.routers.todo-app.middlewares=hsts@docker"
+      - "traefik.http.services.todo-app.loadbalancer.server.port=8000"
+
+networks:
+  # Created once, platform-side, alongside the first app's deploy -- see
+  # the Networking section of docs/app-platform.md in nyc_pa_aws_gitops.
+  home-platform:
+    external: true
