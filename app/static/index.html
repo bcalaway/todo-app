@@ -150,12 +150,16 @@ function renderTodos() {
   const showArchived = document.getElementById("show-archived").checked;
   const categoryFilter = document.getElementById("category-filter").value;
 
-  const visible = todos.filter((todo) => {
-    if (!showArchived && todo.archived) return false;
-    if (categoryFilter === "none" && todo.category_id != null) return false;
-    if (categoryFilter && categoryFilter !== "none" && String(todo.category_id) !== categoryFilter) return false;
-    return true;
-  });
+  const visible = todos
+    .filter((todo) => {
+      if (!showArchived && todo.archived) return false;
+      if (categoryFilter === "none" && todo.category_id != null) return false;
+      if (categoryFilter && categoryFilter !== "none" && String(todo.category_id) !== categoryFilter) return false;
+      return true;
+    })
+    // Stable sort (spec-guaranteed since ES2019) -- completed todos sink to
+    // the bottom while everything else keeps its existing created_at order.
+    .sort((a, b) => Number(a.completed) - Number(b.completed));
 
   const list = document.getElementById("todo-list");
   list.innerHTML = "";
