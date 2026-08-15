@@ -26,6 +26,7 @@ class TodoCreate(BaseModel):
 class TodoUpdate(BaseModel):
     title: str | None = None
     completed: bool | None = None
+    archived: bool | None = None
     category_id: int | None = None
 
 
@@ -35,6 +36,7 @@ class TodoOut(BaseModel):
     id: int
     title: str
     completed: bool
+    archived: bool
     created_at: datetime
     category_id: int | None = None
     category: CategoryOut | None = None

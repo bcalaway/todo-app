@@ -89,6 +89,8 @@ def update_todo(todo_id: int, payload: TodoUpdate, db: Session = Depends(get_db)
         todo.title = payload.title
     if payload.completed is not None:
         todo.completed = payload.completed
+    if payload.archived is not None:
+        todo.archived = payload.archived
     # Checked via model_fields_set, not "is not None" like the fields above --
     # category_id needs an explicit-null case (clearing a todo's category),
     # which the is-not-None pattern can't distinguish from "not provided".

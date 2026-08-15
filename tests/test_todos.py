@@ -4,6 +4,7 @@ def test_create_and_list_todo(client):
     todo = response.json()
     assert todo["title"] == "Buy milk"
     assert todo["completed"] is False
+    assert todo["archived"] is False
 
     response = client.get("/api/todos")
     assert response.status_code == 200
@@ -24,6 +25,22 @@ def test_update_todo_title(client):
     response = client.patch(f"/api/todos/{todo_id}", json={"title": "Walk dog"})
     assert response.status_code == 200
     assert response.json()["title"] == "Walk dog"
+
+
+def test_archive_and_restore_todo(client):
+    todo_id = client.post("/api/todos", json={"title": "Old task"}).json()["id"]
+
+    response = client.patch(f"/api/todos/{todo_id}", json={"archived": True})
+    assert response.status_code == 200
+    assert response.json()["archived"] is True
+
+    # Archiving isn't deletion -- it still shows up in the list.
+    listed = client.get("/api/todos").json()
+    assert any(t["id"] == todo_id and t["archived"] for t in listed)
+
+    response = client.patch(f"/api/todos/{todo_id}", json={"archived": False})
+    assert response.status_code == 200
+    assert response.json()["archived"] is False
 
 
 def test_delete_todo(client):

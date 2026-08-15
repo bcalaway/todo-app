@@ -17,6 +17,7 @@ class Todo(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     completed = Column(Boolean, nullable=False, default=False)
+    archived = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
 

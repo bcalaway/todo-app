@@ -9,11 +9,14 @@
   ul { list-style: none; padding: 0; }
   li { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
   li.completed span.title { text-decoration: line-through; color: #888; }
+  li.archived { opacity: 0.6; }
   li span.title { flex: 1; }
   li span.meta { color: #888; font-size: 0.85em; white-space: nowrap; }
-  form#add-form { display: flex; gap: 8px; }
+  form#add-form { display: flex; gap: 8px; margin-bottom: 8px; }
   input[type=text] { flex: 1; }
   select.category-select { max-width: 140px; }
+  .toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; font-size: 0.9em; }
+  .toolbar label { display: flex; align-items: center; gap: 4px; }
 </style>
 </head>
 <body>
@@ -24,9 +27,20 @@
   <select id="new-category"></select>
   <button type="submit">Add</button>
 </form>
+<div class="toolbar">
+  <label>
+    Category:
+    <select id="category-filter"><option value="">All</option></select>
+  </label>
+  <label>
+    <input type="checkbox" id="show-archived">
+    Show archived
+  </label>
+</div>
 <ul id="todo-list"></ul>
 <script>
 let categories = [];
+let todos = [];
 
 function formatTimestamp(iso) {
   const d = new Date(iso);
@@ -35,17 +49,23 @@ function formatTimestamp(iso) {
   });
 }
 
-function populateCategorySelect(select, selectedId) {
+function populateCategorySelect(select, selectedId, { includeAll = false } = {}) {
   select.innerHTML = "";
+  if (includeAll) {
+    const allOption = document.createElement("option");
+    allOption.value = "";
+    allOption.textContent = "All";
+    select.appendChild(allOption);
+  }
   const noneOption = document.createElement("option");
-  noneOption.value = "";
+  noneOption.value = includeAll ? "none" : "";
   noneOption.textContent = "No category";
   select.appendChild(noneOption);
   for (const category of categories) {
     const option = document.createElement("option");
     option.value = category.id;
     option.textContent = category.name;
-    if (selectedId != null && category.id === selectedId) option.selected = true;
+    if (selectedId != null && String(category.id) === String(selectedId)) option.selected = true;
     select.appendChild(option);
   }
 }
@@ -54,16 +74,26 @@ async function loadCategories() {
   const res = await fetch("/api/categories");
   categories = res.ok ? await res.json() : [];
   populateCategorySelect(document.getElementById("new-category"), null);
+  populateCategorySelect(document.getElementById("category-filter"), null, { includeAll: true });
 }
 
-async function loadTodos() {
-  const res = await fetch("/api/todos");
-  const todos = await res.json();
+function renderTodos() {
+  const showArchived = document.getElementById("show-archived").checked;
+  const categoryFilter = document.getElementById("category-filter").value;
+
+  const visible = todos.filter((todo) => {
+    if (!showArchived && todo.archived) return false;
+    if (categoryFilter === "none" && todo.category_id != null) return false;
+    if (categoryFilter && categoryFilter !== "none" && String(todo.category_id) !== categoryFilter) return false;
+    return true;
+  });
+
   const list = document.getElementById("todo-list");
   list.innerHTML = "";
-  for (const todo of todos) {
+  for (const todo of visible) {
     const li = document.createElement("li");
     if (todo.completed) li.classList.add("completed");
+    if (todo.archived) li.classList.add("archived");
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -83,13 +113,23 @@ async function loadTodos() {
     populateCategorySelect(categorySelect, todo.category_id);
     categorySelect.onchange = () => setTodoCategory(todo.id, categorySelect.value);
 
-    const del = document.createElement("button");
-    del.textContent = "Delete";
-    del.onclick = () => deleteTodo(todo.id);
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "Edit";
+    editBtn.onclick = () => editTodo(todo.id, todo.title);
 
-    li.append(checkbox, span, meta, categorySelect, del);
+    const archiveBtn = document.createElement("button");
+    archiveBtn.textContent = todo.archived ? "Restore" : "Archive";
+    archiveBtn.onclick = () => setTodoArchived(todo.id, !todo.archived);
+
+    li.append(checkbox, span, meta, categorySelect, editBtn, archiveBtn);
     list.appendChild(li);
   }
+}
+
+async function loadTodos() {
+  const res = await fetch("/api/todos");
+  todos = await res.json();
+  renderTodos();
 }
 
 async function toggleTodo(id, completed) {
@@ -110,8 +150,23 @@ async function setTodoCategory(id, categoryId) {
   loadTodos();
 }
 
-async function deleteTodo(id) {
-  await fetch(`/api/todos/${id}`, { method: "DELETE" });
+async function setTodoArchived(id, archived) {
+  await fetch(`/api/todos/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ archived }),
+  });
+  loadTodos();
+}
+
+async function editTodo(id, currentTitle) {
+  const title = prompt("Edit todo", currentTitle);
+  if (!title || title === currentTitle) return;
+  await fetch(`/api/todos/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
   loadTodos();
 }
 
@@ -130,6 +185,9 @@ document.getElementById("add-form").addEventListener("submit", async (e) => {
   input.value = "";
   loadTodos();
 });
+
+document.getElementById("category-filter").addEventListener("change", renderTodos);
+document.getElementById("show-archived").addEventListener("change", renderTodos);
 
 (async () => {
   await loadCategories();
