@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Categories</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+  nav { margin-bottom: 16px; }
+  ul { list-style: none; padding: 0; }
+  li { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  li span.name { flex: 1; }
+  form#add-form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; }
+</style>
+</head>
+<body>
+<nav><a href="/">Back to todos</a></nav>
+<h1>Categories</h1>
+<form id="add-form">
+  <input type="text" id="new-name" placeholder="New category" required>
+  <button type="submit">Add</button>
+</form>
+<ul id="category-list"></ul>
+<script>
+async function loadCategories() {
+  const res = await fetch("/api/categories");
+  const categories = await res.json();
+  const list = document.getElementById("category-list");
+  list.innerHTML = "";
+  for (const category of categories) {
+    const li = document.createElement("li");
+
+    const span = document.createElement("span");
+    span.className = "name";
+    span.textContent = category.name;
+
+    const rename = document.createElement("button");
+    rename.textContent = "Rename";
+    rename.onclick = () => renameCategory(category.id, category.name);
+
+    const del = document.createElement("button");
+    del.textContent = "Delete";
+    del.onclick = () => deleteCategory(category.id);
+
+    li.append(span, rename, del);
+    list.appendChild(li);
+  }
+}
+
+async function renameCategory(id, currentName) {
+  const name = prompt("Rename category", currentName);
+  if (!name || name === currentName) return;
+  const res = await fetch(`/api/categories/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    alert("That name is already in use.");
+    return;
+  }
+  loadCategories();
+}
+
+async function deleteCategory(id) {
+  if (!confirm("Delete this category? Todos using it will keep their title but lose the category.")) return;
+  await fetch(`/api/categories/${id}`, { method: "DELETE" });
+  loadCategories();
+}
+
+document.getElementById("add-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = document.getElementById("new-name");
+  const res = await fetch("/api/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: input.value }),
+  });
+  if (!res.ok) {
+    alert("That name is already in use.");
+    return;
+  }
+  input.value = "";
+  loadCategories();
+});
+
+loadCategories();
+</script>
+</body>
+</html>

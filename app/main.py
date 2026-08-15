@@ -5,13 +5,14 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.db import check_connection, create_tables, get_db
-from app.models import Todo
-from app.schemas import TodoCreate, TodoOut, TodoUpdate
+from app.models import Category, Todo
+from app.schemas import CategoryCreate, CategoryOut, CategoryUpdate, TodoCreate, TodoOut, TodoUpdate
 
 STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
@@ -55,6 +56,11 @@ def root():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/categories")
+def categories_page():
+    return FileResponse(STATIC_DIR / "categories.html")
+
+
 @app.get("/db-check")
 def db_check():
     return {"connected": check_connection()}
@@ -67,7 +73,7 @@ def list_todos(db: Session = Depends(get_db)):
 
 @app.post("/api/todos", response_model=TodoOut, status_code=201)
 def create_todo(payload: TodoCreate, db: Session = Depends(get_db)):
-    todo = Todo(title=payload.title)
+    todo = Todo(title=payload.title, category_id=payload.category_id)
     db.add(todo)
     db.commit()
     db.refresh(todo)
@@ -83,6 +89,11 @@ def update_todo(todo_id: int, payload: TodoUpdate, db: Session = Depends(get_db)
         todo.title = payload.title
     if payload.completed is not None:
         todo.completed = payload.completed
+    # Checked via model_fields_set, not "is not None" like the fields above --
+    # category_id needs an explicit-null case (clearing a todo's category),
+    # which the is-not-None pattern can't distinguish from "not provided".
+    if "category_id" in payload.model_fields_set:
+        todo.category_id = payload.category_id
     db.commit()
     db.refresh(todo)
     return todo
@@ -94,6 +105,54 @@ def delete_todo(todo_id: int, db: Session = Depends(get_db)):
     if todo is None:
         raise HTTPException(status_code=404, detail="Todo not found")
     db.delete(todo)
+    db.commit()
+
+
+@app.get("/api/categories", response_model=list[CategoryOut])
+def list_categories(db: Session = Depends(get_db)):
+    return db.query(Category).order_by(Category.name).all()
+
+
+@app.post("/api/categories", response_model=CategoryOut, status_code=201)
+def create_category(payload: CategoryCreate, db: Session = Depends(get_db)):
+    category = Category(name=payload.name)
+    db.add(category)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Category already exists") from None
+    db.refresh(category)
+    return category
+
+
+@app.patch("/api/categories/{category_id}", response_model=CategoryOut)
+def update_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db)):
+    category = db.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+    if payload.name is not None:
+        category.name = payload.name
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Category already exists") from None
+    db.refresh(category)
+    return category
+
+
+@app.delete("/api/categories/{category_id}", status_code=204)
+def delete_category(category_id: int, db: Session = Depends(get_db)):
+    category = db.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+    # Explicit application-level unset rather than a DB-level ON DELETE SET
+    # NULL -- keeps behavior identical between the SQLite test DB (no FK
+    # enforcement) and real Postgres, instead of depending on DB-specific
+    # cascade behavior.
+    db.query(Todo).filter(Todo.category_id == category_id).update({"category_id": None})
+    db.delete(category)
     db.commit()
 
 

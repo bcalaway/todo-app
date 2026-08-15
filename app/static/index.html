@@ -4,23 +4,58 @@
 <meta charset="UTF-8">
 <title>Todo</title>
 <style>
-  body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+  body { font-family: sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; }
+  nav { margin-bottom: 16px; }
   ul { list-style: none; padding: 0; }
   li { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-  li.completed span { text-decoration: line-through; color: #888; }
-  li span { flex: 1; }
-  form { display: flex; gap: 8px; }
+  li.completed span.title { text-decoration: line-through; color: #888; }
+  li span.title { flex: 1; }
+  li span.meta { color: #888; font-size: 0.85em; white-space: nowrap; }
+  form#add-form { display: flex; gap: 8px; }
   input[type=text] { flex: 1; }
+  select.category-select { max-width: 140px; }
 </style>
 </head>
 <body>
+<nav><a href="/categories">Manage categories</a></nav>
 <h1>Todo</h1>
 <form id="add-form">
   <input type="text" id="new-title" placeholder="New todo" required>
+  <select id="new-category"></select>
   <button type="submit">Add</button>
 </form>
 <ul id="todo-list"></ul>
 <script>
+let categories = [];
+
+function formatTimestamp(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function populateCategorySelect(select, selectedId) {
+  select.innerHTML = "";
+  const noneOption = document.createElement("option");
+  noneOption.value = "";
+  noneOption.textContent = "No category";
+  select.appendChild(noneOption);
+  for (const category of categories) {
+    const option = document.createElement("option");
+    option.value = category.id;
+    option.textContent = category.name;
+    if (selectedId != null && category.id === selectedId) option.selected = true;
+    select.appendChild(option);
+  }
+}
+
+async function loadCategories() {
+  const res = await fetch("/api/categories");
+  categories = res.ok ? await res.json() : [];
+  populateCategorySelect(document.getElementById("new-category"), null);
+}
+
 async function loadTodos() {
   const res = await fetch("/api/todos");
   const todos = await res.json();
@@ -36,13 +71,23 @@ async function loadTodos() {
     checkbox.onchange = () => toggleTodo(todo.id, checkbox.checked);
 
     const span = document.createElement("span");
+    span.className = "title";
     span.textContent = todo.title;
+
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = formatTimestamp(todo.created_at);
+
+    const categorySelect = document.createElement("select");
+    categorySelect.className = "category-select";
+    populateCategorySelect(categorySelect, todo.category_id);
+    categorySelect.onchange = () => setTodoCategory(todo.id, categorySelect.value);
 
     const del = document.createElement("button");
     del.textContent = "Delete";
     del.onclick = () => deleteTodo(todo.id);
 
-    li.append(checkbox, span, del);
+    li.append(checkbox, span, meta, categorySelect, del);
     list.appendChild(li);
   }
 }
@@ -56,6 +101,15 @@ async function toggleTodo(id, completed) {
   loadTodos();
 }
 
+async function setTodoCategory(id, categoryId) {
+  await fetch(`/api/todos/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category_id: categoryId === "" ? null : Number(categoryId) }),
+  });
+  loadTodos();
+}
+
 async function deleteTodo(id) {
   await fetch(`/api/todos/${id}`, { method: "DELETE" });
   loadTodos();
@@ -64,16 +118,23 @@ async function deleteTodo(id) {
 document.getElementById("add-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = document.getElementById("new-title");
+  const categorySelect = document.getElementById("new-category");
   await fetch("/api/todos", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: input.value }),
+    body: JSON.stringify({
+      title: input.value,
+      category_id: categorySelect.value === "" ? null : Number(categorySelect.value),
+    }),
   });
   input.value = "";
   loadTodos();
 });
 
-loadTodos();
+(async () => {
+  await loadCategories();
+  await loadTodos();
+})();
 </script>
 </body>
 </html>

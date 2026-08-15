@@ -18,6 +18,13 @@ def test_root():
     assert "Todo" in response.text
 
 
+def test_categories_page():
+    response = client.get("/categories")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Categories" in response.text
+
+
 def test_db_check_without_configured_db():
     # No POSTGRES_PASSWORD in the test environment -- confirms the app
     # degrades gracefully instead of crashing when Postgres isn't wired up.
@@ -32,6 +39,8 @@ def test_todos_without_configured_db():
     # tests/test_todos.py, which override the DB dependency).
     assert client.get("/api/todos").status_code == 503
     assert client.post("/api/todos", json={"title": "x"}).status_code == 503
+    assert client.get("/api/categories").status_code == 503
+    assert client.post("/api/categories", json={"name": "x"}).status_code == 503
 
 
 def test_login_without_configured_auth():
