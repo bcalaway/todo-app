@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
@@ -16,6 +17,11 @@ from app.schemas import CategoryCreate, CategoryOut, CategoryUpdate, TodoCreate,
 
 STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
+# Routes reachable without an authenticated session -- everything else
+# (including /static/*, checked separately below) is gated by
+# RequireAuthMiddleware.
+PUBLIC_PATHS = {"/health", "/login", "/auth/callback"}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,8 +30,30 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+class RequireAuthMiddleware(BaseHTTPMiddleware):
+    # Only enforced once real Authentik credentials are configured -- pre-onboarding
+    # (no client id/secret in SSM yet), the app stays open rather than locking itself
+    # out before auth is even wired up.
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if not _auth_configured or path in PUBLIC_PATHS or path.startswith("/static/"):
+            return await call_next(request)
+        if not request.session.get("user"):
+            if path.startswith("/api/"):
+                return JSONResponse({"error": "authentication required"}, status_code=401)
+            return RedirectResponse(url="/login")
+        return await call_next(request)
+
+
+# Starlette's add_middleware prepends to the middleware list, so the middleware
+# added LAST ends up running FIRST on an incoming request. RequireAuthMiddleware
+# reads request.session, so it must run after SessionMiddleware -- meaning
+# RequireAuthMiddleware has to be added first, SessionMiddleware second.
+app.add_middleware(RequireAuthMiddleware)
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 
 # Registered only when real credentials are present (post-onboarding, see
 # docs/app-platform.md's Auth section in nyc_pa_aws_gitops) -- the
