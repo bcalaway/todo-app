@@ -47,3 +47,4 @@ No Postgres or Authentik is needed; the tests use an in-memory SQLite database. 
 ## Deploy
 
 Merges to `main` trigger `.github/workflows/cd.yml`: build and push to ECR (`app-build-push.yml`), then deploy to the hub (`app-deploy.yml`) — auto-deploy, no manual promote step. Live at `https://todo-app.billandjessie.com`, behind Authentik login.
+Updated by Claude on September 30, 2026.
