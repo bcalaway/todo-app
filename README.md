@@ -4,6 +4,10 @@ A small TODO list app, running on the [home platform](https://github.com/bcalawa
 
 Scaffolded from the platform's [Python starter template](https://github.com/bcalaway/nyc_pa_aws_gitops/tree/main/templates/python).
 
+## Architecture
+
+See [docs/architecture.md](docs/architecture.md) for diagrams of the DevOps workflow and infrastructure.
+
 ## Stack
 
 FastAPI + Uvicorn, SQLAlchemy (Postgres), Authlib (Authentik OIDC), a single static HTML+JS page (no frontend framework — not needed for this app), pytest, ruff.
