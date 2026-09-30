@@ -32,6 +32,18 @@ ruff check app/ tests/
 
 Both lint and test also run inside Docker via the `lint` / `test` build stages (`docker build --target lint .` / `--target test .`), which is what `app-ci.yml` runs in CI on every PR.
 
+## Running tests locally
+
+CI uses Python 3.12 (see the `python:3.12-slim` base image in the `Dockerfile`), so use that version if you can. From the repo root, install the runtime and dev dependencies (`requirements-dev.txt` provides `pytest` and `ruff`), then run the tests and the linter the same way CI does:
+
+```
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+ruff check app/ tests/
+```
+
+No Postgres or Authentik is needed; the tests use an in-memory SQLite database. To run exactly what CI runs, use `docker build --target test .` and `docker build --target lint .`.
+
 ## Deploy
 
 Merges to `main` trigger `.github/workflows/cd.yml`: build and push to ECR (`app-build-push.yml`), then deploy to the hub (`app-deploy.yml`) — auto-deploy, no manual promote step. Live at `https://todo-app.billandjessie.com`, behind Authentik login.
