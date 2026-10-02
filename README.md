@@ -54,3 +54,5 @@ Merges to `main` trigger `.github/workflows/cd.yml`: build and push to ECR (`app
 
 Every PR from a branch in this repo also gets an automatic **preview** at `https://todo-app-pr<n>.preview.billandjessie.com` (`.github/workflows/preview.yml`, ADR-0023 in nyc_pa_aws_gitops): behind Authentik, seeded with a copy of production data, no production secrets, removed when the PR closes. Label a PR `no-preview` to skip it.
 Updated by Claude on September 30, 2026.
+
+<!-- Milestone 20 preview test; close without merging. -->
