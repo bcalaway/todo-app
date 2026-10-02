@@ -1,0 +1,29 @@
+name: Preview
+
+# Per-PR preview environments (ADR-0023 in nyc_pa_aws_gitops): every PR
+# from a branch in this repo deploys automatically to
+# https://todo-app-pr<n>.preview.billandjessie.com (behind Authentik, with
+# a copy of production data and no production secrets) and is removed when
+# the PR closes. Label a PR `no-preview` to skip it. Fork PRs never deploy.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+# A new push replaces a preview deploy that's still in flight; closing the
+# PR cancels any pending deploy before tearing down.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: bcalaway/nyc_pa_aws_gitops/.github/workflows/app-preview.yml@main
+    with:
+      app_name: todo-app

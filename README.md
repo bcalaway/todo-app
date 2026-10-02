@@ -51,4 +51,6 @@ No Postgres or Authentik is needed; the tests use an in-memory SQLite database. 
 ## Deploy
 
 Merges to `main` trigger `.github/workflows/cd.yml`: build and push to ECR (`app-build-push.yml`), then deploy to the hub (`app-deploy.yml`) — auto-deploy, no manual promote step. Live at `https://todo-app.billandjessie.com`, behind Authentik login.
+
+Every PR from a branch in this repo also gets an automatic **preview** at `https://todo-app-pr<n>.preview.billandjessie.com` (`.github/workflows/preview.yml`, ADR-0023 in nyc_pa_aws_gitops): behind Authentik, seeded with a copy of production data, no production secrets, removed when the PR closes. Label a PR `no-preview` to skip it.
 Updated by Claude on September 30, 2026.
